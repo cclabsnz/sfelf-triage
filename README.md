@@ -58,11 +58,19 @@ Get the logs first with (any download method works; the tool only needs the CSVs
 
 ```bash
 sf audit events pull -o <org> --since 7 --output ./logs
+# then point the analyzer at the org's baseline directory:
+node dist/cli.js analyze ~/.sf/event-baseline/<orgId>
 ```
 
-Files must be named `<EventType>-YYYY-MM-DD.csv` (e.g. `Sites-2026-07-15.csv`) — the
-convention the collectors already write. Exit codes: `0` = analysis ran; `1` = error
-(missing/unreadable dir, no CSVs).
+`discover` reads two layouts, recursively:
+
+- flat `<EventType>-YYYY-MM-DD.csv` (e.g. `Sites-2026-07-15.csv`) — the convention the
+  `forensics-db` collector and manual downloads use;
+- the [sf-audit plugin](https://github.com/cclabsnz/sf-audit-plugin)'s nested
+  `~/.sf/event-baseline/<orgId>/<EventType>/<YYYY-MM-DD>-<Id>.csv` layout (the plugin's
+  `_manifests/` directory is ignored).
+
+Exit codes: `0` = analysis ran; `1` = error (missing/unreadable dir, no CSVs).
 
 ## Example
 
