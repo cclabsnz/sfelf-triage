@@ -1,0 +1,56 @@
+{
+  "name": "sfelf-triage",
+  "version": "0.1.0",
+  "description": "Standalone forensic triage for Salesforce EventLogFile CSVs",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "Gaurav Thakur",
+  "keywords": [
+    "salesforce",
+    "eventlogfile",
+    "forensics",
+    "incident-response",
+    "security",
+    "guest-user",
+    "experience-cloud",
+    "log4shell",
+    "triage",
+    "cli"
+  ],
+  "bin": { "sfelf-triage": "./dist/cli.js" },
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md", "docs"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "chalk": "5.3.0",
+    "cli-table3": "0.6.5",
+    "commander": "12.1.0",
+    "csv-parse": "5.5.6",
+    "ipaddr.js": "2.2.0",
+    "re2": "1.21.4",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.0",
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["re2"],
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-34x7-hfp2-rc4v",
+        "GHSA-8qq5-rm4j-mr97",
+        "GHSA-83g3-92jg-28cx",
+        "GHSA-qffp-2rhf-9h96",
+        "GHSA-9ppj-qmqm-q256",
+        "GHSA-r6q2-hw4h-h46w"
+      ]
+    }
+  }
+}
+

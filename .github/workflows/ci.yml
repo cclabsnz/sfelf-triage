@@ -1,0 +1,20 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+        # Scope audit to production deps only — excludes vitest/vite (dev-only, never shipped).
+        # The re2>node-gyp>tar build-time chain appears under --prod because re2 is a runtime dep,
+        # but tar is only exercised during `re2` native-module compilation (build time, CI install).
+        # Those tar GHSAs are allowlisted in package.json pnpm.auditConfig.ignoreGhsas with
+        # individual notes. Any NEW high/critical in the true runtime path will still fail the gate.
+      - run: pnpm audit --prod --audit-level=high
+      - run: pnpm build
+      - run: pnpm test
