@@ -64,7 +64,7 @@ node dist/cli.js analyze ~/.sf/event-baseline/<orgId>
 
 `discover` reads two layouts, recursively:
 
-- flat `<EventType>-YYYY-MM-DD.csv` (e.g. `Sites-2026-07-15.csv`) — the convention the
+- flat `<EventType>-YYYY-MM-DD.csv` (e.g. `Sites-2024-01-15.csv`) — the convention the
   `forensics-db` collector and manual downloads use;
 - the [sf-audit plugin](https://github.com/cclabsnz/sf-audit-plugin)'s nested
   `~/.sf/event-baseline/<orgId>/<EventType>/<YYYY-MM-DD>-<Id>.csv` layout (the plugin's
@@ -78,7 +78,7 @@ Exit codes: `0` = analysis ran; `1` = error (missing/unreadable dir, no CSVs).
 $ node dist/cli.js analyze ./logs --json
 [
   {
-    "ip": "13.210.1.103",
+    "ip": "203.0.113.10",
     "verdict": "BENIGN_SCANNER",
     "totalReqs": 5,
     "distinctUris": 5,

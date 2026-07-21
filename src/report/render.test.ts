@@ -3,7 +3,7 @@ import { renderJson, renderTable, renderMarkdown } from './render.js';
 import type { IpVerdict } from '../types.js';
 
 const v: IpVerdict[] = [{
-  ip: '13.210.1.103', verdict: 'BENIGN_SCANNER',
+  ip: '203.0.113.10', verdict: 'BENIGN_SCANNER',
   reasons: ['Class-1 probes only'], totalReqs: 100, distinctUris: 50,
   families: { Log4Shell: 5, 'LFI': 3 }, sfExploitableHits: 0,
   allResponsesErrorOrCanned: true,
@@ -17,7 +17,7 @@ describe('report', () => {
 
   it('renderTable includes the IP and verdict', () => {
     const t = renderTable(v);
-    expect(t).toContain('13.210.1.103');
+    expect(t).toContain('203.0.113.10');
     expect(t).toContain('BENIGN_SCANNER');
   });
 

@@ -7,9 +7,9 @@ export interface LogFile {
   date: string;
 }
 
-// Flat convention (forensics-db / manual): `Sites-2026-07-15.csv`.
+// Flat convention (forensics-db / manual): `Sites-2024-01-15.csv`.
 const FLAT = /^([A-Za-z]+)-(\d{4}-\d{2}-\d{2})\.csv$/;
-// sf-audit plugin convention: `<EventType>/2026-07-15-<Id>.csv` (EventType is the parent dir).
+// sf-audit plugin convention: `<EventType>/2024-01-15-<Id>.csv` (EventType is the parent dir).
 const NESTED = /^(\d{4}-\d{2}-\d{2})-.+\.csv$/;
 const EVENT_TYPE_DIR = /^[A-Za-z]+$/;
 

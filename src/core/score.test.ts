@@ -9,13 +9,13 @@ const me = (row: Record<string, string>, type: string) => m.match(ingress(row, t
 describe('score', () => {
   it('returns BENIGN_SCANNER when probes are Class-1-only and responses are error/canned', () => {
     const events = [
-      me({ URI: '/app/etc/passwd', CLIENT_IP: '13.210.1.103', IS_ERROR: '1', RESPONSE_SIZE: '0' }, 'Sites'),
-      me({ URI: '/sfsites/${jndi:ldap://x.nessus.org}', CLIENT_IP: '13.210.1.103', IS_ERROR: '0', RESPONSE_SIZE: '419991' }, 'Sites'),
-      me({ URI: '/sfsites/reports/rwservlet', CLIENT_IP: '13.210.1.103', IS_ERROR: '0', RESPONSE_SIZE: '419991' }, 'Sites'),
-      me({ URI: '/login/reports/rwservlet', CLIENT_IP: '13.210.1.103', IS_ERROR: '0', RESPONSE_SIZE: '419991' }, 'Sites'),
+      me({ URI: '/app/etc/passwd', CLIENT_IP: '203.0.113.10', IS_ERROR: '1', RESPONSE_SIZE: '0' }, 'Sites'),
+      me({ URI: '/sfsites/${jndi:ldap://x.nessus.org}', CLIENT_IP: '203.0.113.10', IS_ERROR: '0', RESPONSE_SIZE: '419991' }, 'Sites'),
+      me({ URI: '/sfsites/reports/rwservlet', CLIENT_IP: '203.0.113.10', IS_ERROR: '0', RESPONSE_SIZE: '419991' }, 'Sites'),
+      me({ URI: '/login/reports/rwservlet', CLIENT_IP: '203.0.113.10', IS_ERROR: '0', RESPONSE_SIZE: '419991' }, 'Sites'),
     ];
     const [v] = score(events, []);
-    expect(v.ip).toBe('13.210.1.103');
+    expect(v.ip).toBe('203.0.113.10');
     expect(v.verdict).toBe('BENIGN_SCANNER');
     expect(v.confidence).toMatch(/not provable/i);
   });

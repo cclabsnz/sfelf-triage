@@ -11,7 +11,7 @@ discover → ingest → match → correlate → score → report
 ```
 
 - **discover** (`core/discover.ts`) — scans the input directory for files named
-  `<EventType>-YYYY-MM-DD.csv` (e.g. `Sites-2026-07-15.csv`), ignoring anything else.
+  `<EventType>-YYYY-MM-DD.csv` (e.g. `Sites-2024-01-15.csv`), ignoring anything else.
   Reads are confined to the given directory.
 - **ingest** (`core/ingest.ts`) — streams each CSV with `csv-parse` (RFC-4180, so a
   quoted field containing a newline stays one record), yielding one row at a time.

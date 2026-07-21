@@ -1,0 +1,2 @@
+EVENT_TYPE,CLIENT_IP,QUERY,TIMESTAMP_DERIVED
+GraphQlQueryExecution,198.51.100.23,uiapi { query { ContentVersion { edges { node { Id } } } } },2024-02-20T00:00:00.000Z

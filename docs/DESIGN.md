@@ -147,7 +147,7 @@ abnormal" even when nothing matches.
 
 Per-IP verdict: `BENIGN_SCANNER | SUSPICIOUS | LIKELY_ABUSE`, driven by whether matches are
 Class-1-only (→ scanner) vs Class-2 behavioral (→ real abuse). Evidence tables underneath
-(families, timeline, top endpoints), mirroring the tables produced manually for the 2026-07-15
+(families, timeline, top endpoints), mirroring the tables produced manually for the 2024-01-15
 incident. Flags: `--json` (pipelines), `--md` (incident record), `--redact` (mask record
 IDs/tokens in shared output).
 

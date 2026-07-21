@@ -20,12 +20,12 @@ describe('Sanitizer.ingress', () => {
   it('parses response signals and derived timestamp', () => {
     const ev = ingress(
       { URI: '/x', CLIENT_IP: '1.2.3.4', IS_ERROR: '0', RESPONSE_SIZE: '420',
-        TIMESTAMP_DERIVED: '2026-07-15T04:02:34.467Z' },
+        TIMESTAMP_DERIVED: '2024-01-15T04:02:34.467Z' },
       'Sites',
     );
     expect(ev.isError).toBe(false);
     expect(ev.responseSize).toBe(420);
-    expect(ev.ts).toBe(Date.parse('2026-07-15T04:02:34.467Z'));
+    expect(ev.ts).toBe(Date.parse('2024-01-15T04:02:34.467Z'));
   });
 
   it('never throws on malformed encoding — returns the raw field', () => {

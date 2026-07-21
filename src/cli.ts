@@ -26,7 +26,7 @@ program
 program
   .command('analyze')
   .description('analyze a directory of EventLogFile CSVs and print per-IP verdicts')
-  .argument('<dir>', 'directory of downloaded EventLogFile CSVs (e.g. Sites-2026-07-15.csv)')
+  .argument('<dir>', 'directory of downloaded EventLogFile CSVs (e.g. Sites-2024-01-15.csv)')
   .option('--json', 'emit JSON (machine-readable, for pipelines)')
   .option('--md', 'emit a markdown table (for the incident write-up)')
   .addHelpText(
@@ -47,7 +47,7 @@ Exit codes: 0 = analysis ran; 1 = error (missing/unreadable dir, no CSVs).`,
     if (files.length === 0) {
       process.stderr.write(
         `sfelf-triage: no EventLogFile CSVs found in "${dir}".\n` +
-          'Files must be named like "Sites-2026-07-15.csv". Download them with:\n' +
+          'Files must be named like "Sites-2024-01-15.csv". Download them with:\n' +
           `  sf audit events pull -o <org> --since 7 --output ${dir}\n`,
       );
       process.exit(1);
