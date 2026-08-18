@@ -9,13 +9,26 @@ describe('SafeMatcher', () => {
     expect(m.test('jndi', '/login/')).toBe(false);
   });
 
-  it('does not hang on a catastrophic-backtracking pattern within the length cap', () => {
-    const evil = '(a+)+$';
-    const input = 'a'.repeat(5000) + 'b'; // never longer than MAX_FIELD
+  // Linear-time matching on a hostile *pattern* is RE2's guarantee and RE2's alone. The
+  // JS fallback is not merely slower here: `(a+)+$` against 5000 characters does not
+  // finish in any practical time, so feeding it to the fallback hangs the suite rather
+  // than failing it. That is precisely what happened in CI once re2 stopped building.
+  it.runIf(m.engine === 're2')(
+    'runs a catastrophic-backtracking pattern in linear time under RE2',
+    () => {
+      const start = Date.now();
+      const res = m.test('(a+)+$', 'a'.repeat(5000) + 'b');
+      expect(Date.now() - start).toBeLessThan(1000);
+      expect(typeof res).toBe('boolean');
+    },
+  );
+
+  // What actually protects the fallback is that patterns come only from our catalog.
+  // That invariant is enforced in security.test.ts, against the JS engine specifically.
+  it('bounds input length before matching, whichever engine is active', () => {
     const start = Date.now();
-    const res = m.test(evil, input);
-    expect(Date.now() - start).toBeLessThan(1000); // completes fast: re2 is linear; js path is length-bounded
-    expect(typeof res).toBe('boolean');
+    expect(typeof m.test('log4j2?[.-][a-z]', 'a'.repeat(50_000))).toBe('boolean');
+    expect(Date.now() - start).toBeLessThan(1000);
   });
 
   it('reports which engine is active', () => {

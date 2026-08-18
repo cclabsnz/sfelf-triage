@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Security
+- **RE2 was never actually in use in CI.** `.npmrc` set `ignore-scripts=true`, which is a
+  blanket setting that overrides the `pnpm.onlyBuiltDependencies` allowlist, so re2's
+  native binding never compiled — `require('re2')` failed with `MODULE_NOT_FOUND` and the
+  matcher silently used the backtracking JS engine. The audit gate had been failing since
+  2026-07-26, which skipped the test step, so nothing surfaced it. Removed the blanket
+  setting; pnpm 10 blocks dependency scripts by default and the allowlist grants re2 alone.
+- **Corrected a false security claim.** `SECURITY.md` stated the `MAX_FIELD` cap meant
+  "even the JS fallback matcher cannot be driven into a pathological backtrack". It cannot:
+  measured on the JS engine, `(a+)+$` takes 40 ms at 20 characters, 10 s at 30, and does
+  not finish at 5000 — four orders of magnitude below the 8192-byte cap. The real property
+  is that patterns come only from our catalog and none of them backtrack catastrophically.
+  That invariant is now tested directly, against the catalog, on a forced JS-fallback
+  matcher, with each pattern in a killable child process (an in-process timeout cannot fire
+  while a regex blocks the event loop, so the suite would hang instead of reporting).
 - **The RE2 fallback is no longer silent.** When the native binding cannot load — most
   often an ABI mismatch after a Node upgrade, which leaves a healthy-looking install —
   matching dropped to a backtracking JS engine with no indication, quietly retiring the
