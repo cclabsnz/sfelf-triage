@@ -69,6 +69,9 @@ All notable changes to this project are documented here. The format follows
   own requirement. **Node 20 is no longer supported**: it reached end of life on
   2026-04-30, and every `re2` release without open advisories requires a newer runtime.
   Supporting it would mean shipping a known-vulnerable regex engine at the trust boundary.
+- `@types/node` tracks the minimum supported runtime (20.19.0 -> 22.20.1). It had been
+  left describing Node 20 after `engines` moved to `>=22.22.2`, so the build typechecked
+  against a runtime the package no longer supports.
 - CI runs on Node 22.22.2, 24.15.0 and latest 24 — the floor of each supported range plus
   the moving tip, so an engines claim cannot drift from what is actually tested.
 - CI no longer runs twice per push. `on: [push, pull_request]` fires both events for any
