@@ -17,6 +17,10 @@ describe('SafeMatcher', () => {
     'runs a catastrophic-backtracking pattern in linear time under RE2',
     () => {
       const start = Date.now();
+      // codeql[js/redos] — this pattern is the fixture, not shipped code. Its exponential
+      // backtracking is the property under test: RE2 must run it in linear time. It is
+      // never matched on the JS engine (see the runIf guard above), and no catalog rule
+      // is permitted to look like it — security.test.ts enforces that against every rule.
       const res = m.test('(a+)+$', 'a'.repeat(5000) + 'b');
       expect(Date.now() - start).toBeLessThan(1000);
       expect(typeof res).toBe('boolean');

@@ -67,6 +67,9 @@ All notable changes to this project are documented here. The format follows
 - `IpVerdict` gains `distinctUrisTruncated`; a truncated count renders as `>=N`.
 - CI runs the full suite on Node 20, 22 and 24, and fails if `docs/SECURITY.md` describes
   an audit allowlist that `package.json` does not define.
+- CI declares `permissions: contents: read`, so `GITHUB_TOKEN` is least-privilege; nothing
+  in the workflow writes to the repository (flagged by CodeQL
+  `actions/missing-workflow-permissions`).
 - `docs/SECURITY.md` no longer claims a `pnpm.auditConfig.ignoreGhsas` allowlist — it had
   been removed from `package.json`, leaving the security doc describing a control that no
   longer existed. Build-time transitives are pinned forward with `pnpm.overrides` instead.
