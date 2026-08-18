@@ -1,20 +1,115 @@
 name: ci
-on: [push, pull_request]
+
+# `on: [push, pull_request]` fires twice for every branch that has an open PR — once for
+# each event — so every push ran the whole matrix twice. Restricting push to the default
+# branch keeps main covered while PR branches are validated exactly once.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege for GITHUB_TOKEN. Nothing in this workflow writes to the repository —
+# it installs, builds, tests and reads files — so read access to contents is all it needs.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Without this a hung step runs to the 6-hour default and, worse, GitHub serves no
+    # logs for an in-progress job — so the failure is both expensive and invisible.
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # Mirrors package.json engines, which mirrors re2's own requirement. Node 20 is
+        # absent because it reached EOL on 2026-04-30 and re2 >= 1.25.1 does not support
+        # it. The RE2 binding is ABI-bound to the Node major it was built against, and the
+        # engine gate below is what turns a silent fallback on a new major into a red build.
+        node-version: ["22.22.2", "24.15.0", "24"]
+    name: test (node ${{ matrix.node-version }})
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with: { version: 9 }
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: pnpm }
+        with: { node-version: "${{ matrix.node-version }}", cache: pnpm }
       - run: pnpm install --frozen-lockfile
         # Scope audit to production deps only — excludes vitest/vite (dev-only, never shipped).
-        # The re2>node-gyp>tar build-time chain appears under --prod because re2 is a runtime dep,
-        # but tar is only exercised during `re2` native-module compilation (build time, CI install).
-        # Those tar GHSAs are allowlisted in package.json pnpm.auditConfig.ignoreGhsas with
-        # individual notes. Any NEW high/critical in the true runtime path will still fail the gate.
+        # No advisories are allowlisted: any high/critical in the runtime graph fails the gate.
       - run: pnpm audit --prod --audit-level=high
       - run: pnpm build
-      - run: pnpm test
+
+      # re2 is a native addon and the test runner loads it inside worker threads. An
+      # addon that is not context-aware can deadlock on load in a worker rather than
+      # fail, which surfaces as a test run that never finishes and never prints. Probing
+      # both contexts separately turns that into a named failure with a log.
+      - name: probe re2 loads in the main thread and in a worker
+        timeout-minutes: 2
+        run: |
+          node -e "
+            const re2 = require('re2');
+            console.log('main thread: re2 ok ->', new re2('abc','i').test('xxABCxx'));
+          "
+          node -e "
+            const { Worker } = require('node:worker_threads');
+            const w = new Worker(\"const re2=require('re2');require('node:worker_threads').parentPort.postMessage(new re2('abc','i').test('xxABCxx'))\", { eval: true });
+            const timer = setTimeout(() => { console.error('worker thread: re2 load TIMED OUT'); process.exit(1); }, 60000);
+            w.on('message', m => { clearTimeout(timer); console.log('worker thread: re2 ok ->', m); w.terminate(); });
+            w.on('error', e => { clearTimeout(timer); console.error('worker thread: re2 failed ->', e.message); process.exit(1); });
+          "
+
+      # Verbose so the log names the last file reached: a run that stops mid-suite is
+      # diagnosable, where the default summary reporter prints nothing until the end.
+      - run: pnpm test -- --reporter=verbose
+
+      # The tool advertises linear-time, ReDoS-immune matching via RE2, and degrades to
+      # a backtracking JS engine when the native binding cannot load. That fallback is
+      # deliberately non-fatal at runtime, which means CI is the only place it can be
+      # caught — without this step a Node upgrade would quietly ship a weaker guarantee
+      # while every other check stayed green.
+      - name: assert RE2 is the active engine
+        run: node dist/cli.js analyze src/core/__fixtures__/benign --require-re2 > /dev/null
+
+      # Pipelines gate on these numbers, so they are part of the public contract and a
+      # silent change to any of them would break a caller without failing a test.
+      # 3 = threshold met, 0 = clean, 4 = clean-but-truncated, 2 = RE2 demanded and absent.
+      - name: assert the --fail-on exit-code contract
+        run: |
+          set +e
+          check() {
+            node dist/cli.js analyze "$1" ${@:3} > /dev/null 2>&1
+            local got=$?
+            if [ "$got" != "$2" ]; then
+              echo "FAIL: analyze $1 ${@:3} -> exit $got, expected $2"
+              exit 1
+            fi
+            echo "  ok: analyze $(basename $1) ${@:3} -> $got"
+          }
+          check src/core/__fixtures__/abuse  3 --fail-on LIKELY_ABUSE
+          check src/core/__fixtures__/abuse  3 --fail-on SUSPICIOUS
+          check src/core/__fixtures__/benign 0 --fail-on LIKELY_ABUSE
+          check src/core/__fixtures__/benign 3 --fail-on BENIGN_SCANNER
+          check src/core/__fixtures__/benign 4 --fail-on LIKELY_ABUSE --max-rows 2
+          check src/core/__fixtures__/benign 1 --fail-on NOPE
+
+  lint-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    name: docs match the shipped surface
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      # SECURITY.md previously described an audit allowlist that had already been removed
+      # from package.json. Documentation drift on a security control is a security bug:
+      # it is what an auditor reads instead of the config.
+      - name: SECURITY.md does not claim an audit allowlist unless one exists
+        run: |
+          if grep -q 'ignoreGhsas' docs/SECURITY.md && ! grep -q 'ignoreGhsas' package.json; then
+            echo "SECURITY.md documents an audit allowlist that package.json does not define"
+            exit 1
+          fi

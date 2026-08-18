@@ -22,6 +22,10 @@ Run `sfelf-triage explain` for the full decision logic.
 
 ## Install
 
+Requires Node `^22.22.2 || ^24.15.0 || >=26.0.0` — the range `re2` supports. Node 20 is
+not supported: it reached end of life on 2026-04-30, and the `re2` versions that carry
+no open advisories do not run on it.
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
@@ -70,24 +74,61 @@ node dist/cli.js analyze ~/.sf/event-baseline/<orgId>
   `~/.sf/event-baseline/<orgId>/<EventType>/<YYYY-MM-DD>-<Id>.csv` layout (the plugin's
   `_manifests/` directory is ignored).
 
-Exit codes: `0` = analysis ran; `1` = error (missing/unreadable dir, no CSVs).
+### Gating a pipeline
+
+`analyze` reports rather than judges by default — it always exits `0` when it ran. Pass
+`--fail-on <verdict>` to turn a result into a build failure:
+
+```bash
+sfelf-triage analyze ./logs --fail-on LIKELY_ABUSE            # fail on data-touching behaviour
+sfelf-triage analyze ./logs --fail-on SUSPICIOUS --require-re2 # stricter, and refuse to run degraded
+sfelf-triage analyze ./logs --max-rows 50000                   # fast sample pass (reports PARTIAL)
+```
+
+The threshold is inclusive and ordered `BENIGN_SCANNER < SUSPICIOUS < LIKELY_ABUSE`, so
+`--fail-on SUSPICIOUS` also fails on `LIKELY_ABUSE`.
+
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| `0` | analysis ran; with `--fail-on`, nothing reached the threshold |
+| `1` | error — missing/unreadable dir, no CSVs, bad argument |
+| `2` | `--require-re2` given but the native RE2 engine is unavailable |
+| `3` | `--fail-on` threshold met — one or more IPs reached that verdict |
+| `4` | `--fail-on` threshold not met, but the run was truncated at a resource ceiling |
+
+`4` is deliberately distinct from `0`. A gate has three answers, not two: something was
+found, nothing was found, and the run was not complete enough to say. Treating the third
+as a pass is how a truncated analysis becomes a false all-clear.
 
 ## Example
 
 ```
 $ node dist/cli.js analyze ./logs --json
-[
-  {
-    "ip": "203.0.113.10",
-    "verdict": "BENIGN_SCANNER",
-    "totalReqs": 5,
-    "distinctUris": 5,
-    "families": { "LFI": 1, "Log4Shell": 1, "Oracle-Reports": 2 },
-    "sfExploitableHits": 0,
-    "confidence": "No data-return signature observed; content not provable from EventLogFile alone."
-  }
-]
+{
+  "engine": "re2",
+  "degradedReason": null,
+  "truncated": false,
+  "limitsReached": {},
+  "stats": { "files": 3, "rows": 41207 },
+  "verdicts": [
+    {
+      "ip": "203.0.113.10",
+      "verdict": "BENIGN_SCANNER",
+      "totalReqs": 5,
+      "distinctUris": 5,
+      "distinctUrisTruncated": false,
+      "families": { "LFI": 1, "Log4Shell": 1, "Oracle-Reports": 2 },
+      "sfExploitableHits": 0,
+      "confidence": "No data-return signature observed; content not provable from EventLogFile alone."
+    }
+  ]
+}
 ```
+
+The verdicts sit under a `verdicts` key rather than at the top level so a consumer can
+see, in the same document, which engine produced them and whether the run was complete.
 
 ## How it works
 
@@ -100,8 +141,22 @@ discover → ingest → match → correlate → score → report
 
 The tool ingests hostile input by definition, so all decoding, regex execution, and
 output live in three single-responsibility units; the core is pure logic over a branded
-`SafeEvent`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
-[docs/SECURITY.md](docs/SECURITY.md).
+`SafeEvent`. Analysis is a single pass that retains no events, so memory scales with the
+number of distinct client IPs rather than the size of the logs. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/SECURITY.md](docs/SECURITY.md).
+
+### Trusting a run
+
+Two things can weaken a result, and both are reported rather than assumed away:
+
+- **Regex engine.** Matching uses RE2 (linear-time, ReDoS-immune). If the native binding
+  cannot load — most often an ABI mismatch after a Node upgrade — the tool falls back to
+  the JS engine and says so on stderr, in the table/markdown output, and in `--json`
+  (`engine`, `degradedReason`). Use `--require-re2` to exit 2 instead of running degraded.
+  Fix a fallback with `pnpm rebuild re2`.
+- **Resource ceilings.** Very large inputs can hit a bound in `src/limits.ts`. A run that
+  did is labelled `PARTIAL ANALYSIS`, names the ceiling it hit, and sets `truncated` in
+  `--json`. Treat its verdicts as a lower bound and re-run over a narrower slice.
 
 ## Scope
 

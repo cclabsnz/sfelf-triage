@@ -5,8 +5,108 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+- **Upgraded `re2` 1.21.4 -> 1.26.1**, clearing four open advisories against the one
+  dependency that runs against hostile input by design (GHSA-8hcv-x26h-mcgp,
+  GHSA-6hxr-mr5r-9836, GHSA-ff84-5f28-78qj, GHSA-j4r3-hg7j-8chg — process-abort and
+  out-of-bounds-read DoS, plus a heap-disclosure path). `pnpm audit --prod` now reports no
+  known vulnerabilities at any level, down from four moderate.
+- **RE2 was never actually in use in CI.** `.npmrc` set `ignore-scripts=true`, which is a
+  blanket setting that overrides the `pnpm.onlyBuiltDependencies` allowlist, so re2's
+  native binding never compiled — `require('re2')` failed with `MODULE_NOT_FOUND` and the
+  matcher silently used the backtracking JS engine. The audit gate had been failing since
+  2026-07-26, which skipped the test step, so nothing surfaced it. Removed the blanket
+  setting; pnpm 10 blocks dependency scripts by default and the allowlist grants re2 alone.
+- **Corrected a false security claim.** `SECURITY.md` stated the `MAX_FIELD` cap meant
+  "even the JS fallback matcher cannot be driven into a pathological backtrack". It cannot:
+  measured on the JS engine, `(a+)+$` takes 40 ms at 20 characters, 10 s at 30, and does
+  not finish at 5000 — four orders of magnitude below the 8192-byte cap. The real property
+  is that patterns come only from our catalog and none of them backtrack catastrophically.
+  That invariant is now tested directly, against the catalog, on a forced JS-fallback
+  matcher, with each pattern in a killable child process (an in-process timeout cannot fire
+  while a regex blocks the event loop, so the suite would hang instead of reporting).
+- **The RE2 fallback is no longer silent.** When the native binding cannot load — most
+  often an ABI mismatch after a Node upgrade, which leaves a healthy-looking install —
+  matching dropped to a backtracking JS engine with no indication, quietly retiring the
+  ReDoS guarantee the tool advertises. The active engine and the reason for any fallback
+  are now reported on stderr, in-band in table/markdown output, and in `--json`.
+  `analyze --require-re2` exits 2 rather than running degraded, and CI asserts RE2 is
+  active on every supported Node major.
+- **Analysis no longer buffers the event stream.** `analyze` retained every `SafeEvent`
+  and `MatchedEvent` for the whole run, putting peak memory in proportion to row count
+  despite the docs promising constant memory — an out-of-memory failure on exactly the
+  multi-gigabyte exports the tool is for. Scoring and correlation now fold incrementally;
+  peak memory scales with distinct client-IP cardinality.
+- **Every accumulator is bounded** (`src/limits.ts`): rows, files, recursion depth, IPs,
+  URIs per IP, response sizes per IP, correlation candidates per IP, and CSV record size.
+  Reaching a ceiling is reported as `PARTIAL ANALYSIS` in every format, never truncated
+  silently.
+- **Oversized CSV records can no longer swallow the rest of a file.** The new
+  `max_record_size` ceiling is enforced by csv-parse by ending the stream, which would
+  have dropped every later row unreported; ingest compares bytes consumed against file
+  size and records a short read.
+- **Markdown output escapes `|` and `\`.** An unescaped pipe in a value splits a cell and
+  shifts every later column, letting crafted input forge or hide values in an incident
+  record (`mdCell`).
+- **Client IPs are canonicalized** (`ipaddr.js`). Per-IP counters and thresholds are keyed
+  on this string, so a host reaching the org as both `203.0.113.9` and
+  `::ffff:203.0.113.9` previously split into two rows and could sit under the thresholds
+  that would flag it. Only lossless rewrites are applied: legacy IPv4 notations (octal,
+  hex, integer, zero-padded) are deliberately left as written, since resolving them would
+  print an address that appears nowhere in the log.
+- Pinned `ip-address` forward past GHSA-mwp4-54f8-5fhr, a high in `re2`'s build-time
+  `node-gyp` chain that the audit gate had begun failing on.
+- **Traversal is confined and terminates.** `discover` resolves the target directory,
+  compares by path segment rather than string prefix, does not follow symlinks out of the
+  tree, and bounds depth and file count — log directories are routinely unpacked from
+  archives supplied by the party under investigation.
+- **Correlation matches by binary search**, so a single IP issuing many file reads and
+  downloads cannot drive quadratic work in the analyzer.
+- Removed unused runtime dependencies `chalk` and `zod`; neither was imported anywhere.
+
+### Changed
+- **Breaking:** `engines.node` is now `^22.22.2 || ^24.15.0 || >=26.0.0`, mirroring `re2`'s
+  own requirement. **Node 20 is no longer supported**: it reached end of life on
+  2026-04-30, and every `re2` release without open advisories requires a newer runtime.
+  Supporting it would mean shipping a known-vulnerable regex engine at the trust boundary.
+- CI runs on Node 22.22.2, 24.15.0 and latest 24 — the floor of each supported range plus
+  the moving tip, so an engines claim cannot drift from what is actually tested.
+- CI no longer runs twice per push. `on: [push, pull_request]` fires both events for any
+  branch with an open PR; push is now scoped to `main`.
+- CI asserts the `--fail-on` exit-code contract (0/1/2/3/4) against the fixtures. Pipelines
+  gate on those numbers, so a silent change would break a caller without failing a test.
+- **Breaking:** `analyze()` returns an `AnalysisReport` (`verdicts`, `engine`,
+  `degradedReason`, `limits`, `stats`) instead of a bare `IpVerdict[]`, and `--json`
+  emits that object rather than a top-level array. A consumer can now see in one document
+  which engine produced the verdicts and whether the run was complete.
+- `IpVerdict` gains `distinctUrisTruncated`; a truncated count renders as `>=N`.
+- CI runs the full suite on Node 20, 22 and 24, and fails if `docs/SECURITY.md` describes
+  an audit allowlist that `package.json` does not define.
+- CI declares `permissions: contents: read`, so `GITHUB_TOKEN` is least-privilege; nothing
+  in the workflow writes to the repository (flagged by CodeQL
+  `actions/missing-workflow-permissions`).
+- `docs/SECURITY.md` no longer claims a `pnpm.auditConfig.ignoreGhsas` allowlist — it had
+  been removed from `package.json`, leaving the security doc describing a control that no
+  longer existed. Build-time transitives are pinned forward with `pnpm.overrides` instead.
+- `docs/ARCHITECTURE.md` and `docs/DESIGN.md` corrected: the pipeline never had the
+  constant-memory property they described.
+
 ### Added
 - CLI subcommands: `analyze <dir>`, `catalog`, and `explain`.
+- `analyze --require-re2` for unattended pipelines that must not run degraded.
+- `analyze --fail-on <verdict>` turns a result into a pipeline failure: exit 3 when any IP
+  reaches the threshold (inclusive, ordered `BENIGN_SCANNER < SUSPICIOUS < LIKELY_ABUSE`).
+  Exit 4 is returned when nothing reached the threshold *but* the run was truncated at a
+  resource ceiling — a gate has three answers, and treating "could not tell" as a pass is
+  how a truncated analysis becomes a false all-clear. Findings take precedence over
+  incompleteness. Default behaviour is unchanged: without the flag `analyze` still exits 0.
+- `analyze --max-rows <n>` for a fast sample pass; the run then reports as `PARTIAL`.
+- `.nvmrc` pinning the development toolchain.
+
+### Fixed
+- `PARTIAL ANALYSIS` named the *default* ceiling rather than the one the run used, so a
+  run bounded to 2 rows reported `maxRows=5000000`. `LimitReport` now holds the limits it
+  was constructed with, so the summary cannot describe a run using ceilings it never had.
 - `catalog` lists every detection rule (grouped Class 1 / Class 2); `--family` filters.
 - `explain [verdict]` describes each verdict, the decision order, and the
   bounds-not-proves caveat.

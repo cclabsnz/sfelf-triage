@@ -55,13 +55,17 @@ discover → ingest(stream) → normalize → match(catalog) → correlate → s
 
 - **discover** — scan input dir, map `EventType-YYYY-MM-DD.csv` filenames → EventType + date
   (reuses the naming convention `forensics-db/collect.mjs` already writes).
-- **ingest** — `csv-parse` streaming (RFC-4180, handles quoted embedded newlines); constant
-  memory; yields one raw row at a time.
+- **ingest** — `csv-parse` streaming (RFC-4180, handles quoted embedded newlines); yields one
+  raw row at a time, with a `maxRecordSize` ceiling on the largest record assembled and a
+  short-read check so an oversized record cannot silently end the file.
 - **normalize** — map each EventType's columns onto a unified event shape.
 - **match** — run each event's URI/query fields against the pattern catalog via `SafeMatcher`.
 - **correlate** — bounded in-memory index for the few relational patterns (read-then-download,
-  REQUEST_ID layer-stack, IP+time sessionization).
-- **score** — per-IP verdict from matches + behavioral flags.
+  REQUEST_ID layer-stack, IP+time sessionization); retains only candidate events, matched by
+  binary search.
+- **score** — per-IP verdict from matches + behavioral flags, folded incrementally so no stage
+  retains the event stream. Peak memory scales with distinct-IP cardinality, not row count;
+  see the memory model in ARCHITECTURE.md.
 - **report** — render via `Sanitizer.egress` to table / JSON / markdown.
 
 ## 4. The trust boundary (hostile-input layer)
@@ -181,6 +185,11 @@ are Class-1-only AND every response is an error or a canned-page size.
 
 ## 7. Open-source building blocks
 
+This table is the **design-time** shortlist, including capabilities deferred past v1. The set
+actually shipped today is narrower — `cli-table3`, `commander`, `csv-parse`, `ipaddr.js`, `re2`
+— because an unused dependency is shipped attack surface that buys nothing (see SECURITY.md,
+"Supply chain"). Rows below that are not in `package.json` are planned, not present.
+
 | Concern | Library | Notes / caveat |
 |---|---|---|
 | CSV ingest | `csv-parse` (adaltas/node-csv) | RFC-4180 streaming; handles quoted newlines |
@@ -189,8 +198,8 @@ are Class-1-only AND every response is an error or a canned-page size.
 | GraphQL entity extraction | `graphql` (reference parser) | parse guest GraphQL query text → entities / edges vs totalCount |
 | SOQL parsing | `@jetstreamapp/soql-parser-js` | parse ApiEvent/RestApi SOQL for entity / row-count recon |
 | CIDR / cloud attribution | `ipaddr.js` + bundled AWS/Azure/GCP IP-range JSON | flag datacenter/cloud guest traffic; snapshots, not live fetch |
-| CLI / output | `commander`, `cli-table3`, `chalk` | standard, lightweight |
-| Schema / validation | `zod` | already in the stack |
+| CLI / output | `commander`, `cli-table3` | standard, lightweight (`chalk` dropped — unused) |
+| Schema / validation | `zod` | *planned, not installed* — nothing yet needs it; `ingress` does the coercion |
 
 **Deferred out of v1:** `node-libinjection` — native C lib with a history of detection bypasses;
 SQLi/XSS are not the primary Salesforce guest-abuse vectors. Excluded to keep `re2` the sole
