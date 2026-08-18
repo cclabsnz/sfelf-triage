@@ -22,6 +22,10 @@ Run `sfelf-triage explain` for the full decision logic.
 
 ## Install
 
+Requires Node `^22.22.2 || ^24.15.0 || >=26.0.0` — the range `re2` supports. Node 20 is
+not supported: it reached end of life on 2026-04-30, and the `re2` versions that carry
+no open advisories do not run on it.
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm build

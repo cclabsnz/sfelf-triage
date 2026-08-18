@@ -163,6 +163,13 @@ canonicalization (`sanitizer/ingress.test.ts`), markdown escaping
 - The runtime dependency set is kept to what is actually imported (`cli-table3`,
   `commander`, `csv-parse`, `ipaddr.js`, `re2`). Unused dependencies are removed rather
   than carried, since each one is shipped attack surface that buys nothing.
+- `re2` is held at a version with no open advisories. It is the one dependency that runs
+  against hostile input by design, so an advisory against it is an advisory against the
+  trust boundary itself — it is upgraded ahead of convenience, not behind it. Because
+  `re2 >= 1.25.1` requires `^22.22.2 || ^24.15.0 || >=26.0.0`, this package's `engines`
+  mirrors that exactly; supporting an older Node would mean shipping a known-vulnerable
+  regex engine. Node 20 reached end of life on 2026-04-30 and receives no security
+  patches, so it is not a supported runtime.
 - A CI job fails the build if this document describes an audit allowlist that
   `package.json` does not define. Documentation drift on a security control is a
   security bug: this file is what an auditor reads instead of the config.

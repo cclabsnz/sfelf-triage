@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Security
+- **Upgraded `re2` 1.21.4 -> 1.26.1**, clearing four open advisories against the one
+  dependency that runs against hostile input by design (GHSA-8hcv-x26h-mcgp,
+  GHSA-6hxr-mr5r-9836, GHSA-ff84-5f28-78qj, GHSA-j4r3-hg7j-8chg — process-abort and
+  out-of-bounds-read DoS, plus a heap-disclosure path). `pnpm audit --prod` now reports no
+  known vulnerabilities at any level, down from four moderate.
 - **RE2 was never actually in use in CI.** `.npmrc` set `ignore-scripts=true`, which is a
   blanket setting that overrides the `pnpm.onlyBuiltDependencies` allowlist, so re2's
   native binding never compiled — `require('re2')` failed with `MODULE_NOT_FOUND` and the
@@ -60,6 +65,16 @@ All notable changes to this project are documented here. The format follows
 - Removed unused runtime dependencies `chalk` and `zod`; neither was imported anywhere.
 
 ### Changed
+- **Breaking:** `engines.node` is now `^22.22.2 || ^24.15.0 || >=26.0.0`, mirroring `re2`'s
+  own requirement. **Node 20 is no longer supported**: it reached end of life on
+  2026-04-30, and every `re2` release without open advisories requires a newer runtime.
+  Supporting it would mean shipping a known-vulnerable regex engine at the trust boundary.
+- CI runs on Node 22.22.2, 24.15.0 and latest 24 — the floor of each supported range plus
+  the moving tip, so an engines claim cannot drift from what is actually tested.
+- CI no longer runs twice per push. `on: [push, pull_request]` fires both events for any
+  branch with an open PR; push is now scoped to `main`.
+- CI asserts the `--fail-on` exit-code contract (0/1/2/3/4) against the fixtures. Pipelines
+  gate on those numbers, so a silent change would break a caller without failing a test.
 - **Breaking:** `analyze()` returns an `AnalysisReport` (`verdicts`, `engine`,
   `degradedReason`, `limits`, `stats`) instead of a bare `IpVerdict[]`, and `--json`
   emits that object rather than a top-level array. A consumer can now see in one document
