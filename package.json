@@ -43,7 +43,7 @@
     "re2": "1.26.1"
   },
   "devDependencies": {
-    "@types/node": "20.19.0",
+    "@types/node": "22.20.1",
     "typescript": "5.5.4",
     "vitest": "3.2.6"
   },
