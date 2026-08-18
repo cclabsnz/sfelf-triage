@@ -3,6 +3,9 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Without this a hung step runs to the 6-hour default and, worse, GitHub serves no
+    # logs for an in-progress job — so the failure is both expensive and invisible.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -22,7 +25,29 @@ jobs:
         # No advisories are allowlisted: any high/critical in the runtime graph fails the gate.
       - run: pnpm audit --prod --audit-level=high
       - run: pnpm build
-      - run: pnpm test
+
+      # re2 is a native addon and the test runner loads it inside worker threads. An
+      # addon that is not context-aware can deadlock on load in a worker rather than
+      # fail, which surfaces as a test run that never finishes and never prints. Probing
+      # both contexts separately turns that into a named failure with a log.
+      - name: probe re2 loads in the main thread and in a worker
+        timeout-minutes: 2
+        run: |
+          node -e "
+            const re2 = require('re2');
+            console.log('main thread: re2 ok ->', new re2('abc','i').test('xxABCxx'));
+          "
+          node -e "
+            const { Worker } = require('node:worker_threads');
+            const w = new Worker(\"const re2=require('re2');require('node:worker_threads').parentPort.postMessage(new re2('abc','i').test('xxABCxx'))\", { eval: true });
+            const timer = setTimeout(() => { console.error('worker thread: re2 load TIMED OUT'); process.exit(1); }, 60000);
+            w.on('message', m => { clearTimeout(timer); console.log('worker thread: re2 ok ->', m); w.terminate(); });
+            w.on('error', e => { clearTimeout(timer); console.error('worker thread: re2 failed ->', e.message); process.exit(1); });
+          "
+
+      # Verbose so the log names the last file reached: a run that stops mid-suite is
+      # diagnosable, where the default summary reporter prints nothing until the end.
+      - run: pnpm test -- --reporter=verbose
 
       # The tool advertises linear-time, ReDoS-immune matching via RE2, and degrades to
       # a backtracking JS engine when the native binding cannot load. That fallback is
@@ -34,6 +59,7 @@ jobs:
 
   lint-docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     name: docs match the shipped surface
     steps:
       - uses: actions/checkout@v4
