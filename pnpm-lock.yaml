@@ -9,6 +9,7 @@ overrides:
   brace-expansion: '>=5.0.8'
   vite: '>=6.4.3'
   esbuild: '>=0.25.0'
+  ip-address: '>=10.3.1'
 
 importers:
 
@@ -601,8 +602,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  ip-address@10.2.0:
-    resolution: {integrity: sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA==}
+  ip-address@10.5.0:
+    resolution: {integrity: sha512-R5SnVLJmgYYvf2F2ZgwSBnelz5G4q5AxIC277GDfUaNbrZKNANcBC7RHqYYePlszf4kBolVkJauG0ZjHHFh55g==}
     engines: {node: '>= 12'}
 
   ipaddr.js@2.2.0:
@@ -1416,7 +1417,7 @@ snapshots:
 
   install-artifact-from-github@1.7.0: {}
 
-  ip-address@10.2.0: {}
+  ip-address@10.5.0: {}
 
   ipaddr.js@2.2.0: {}
 
@@ -1633,7 +1634,7 @@ snapshots:
 
   socks@2.8.9:
     dependencies:
-      ip-address: 10.2.0
+      ip-address: 10.5.0
       smart-buffer: 4.2.0
 
   source-map-js@1.2.1: {}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SafeMatcher } from './safeMatcher.js';
+import { SafeMatcher, loadRe2, describeLoadFailure } from './safeMatcher.js';
 
 describe('SafeMatcher', () => {
   const m = new SafeMatcher();
@@ -20,5 +20,67 @@ describe('SafeMatcher', () => {
 
   it('reports which engine is active', () => {
     expect(['re2', 'js']).toContain(m.engine);
+  });
+
+  it('reports no degradation reason when RE2 loaded', () => {
+    if (m.engine === 're2') expect(m.degradedReason).toBeNull();
+    else expect(m.degradedReason).toBeTruthy();
+  });
+
+  // The fallback is the tool's single largest silent-failure risk: an install that
+  // looks healthy still matches with a backtracking engine. These pin the diagnostics
+  // rather than the binding, so they hold on any host.
+  describe('when the native binding cannot load', () => {
+    it('falls back to the JS engine and states why', () => {
+      const fallback = new SafeMatcher(() => ({ ctor: null, reason: 'binding missing' }));
+      expect(fallback.engine).toBe('js');
+      expect(fallback.degradedReason).toBe('binding missing');
+      expect(fallback.test('jndi', 'x${JNDI:ldap}')).toBe(true);
+    });
+
+    it('never leaves degradedReason unset, even for an unexplained failure', () => {
+      const fallback = new SafeMatcher(() => ({ ctor: null, reason: null }));
+      expect(fallback.engine).toBe('js');
+      expect(fallback.degradedReason).toMatch(/unknown reason/i);
+    });
+
+  });
+
+  // The ABI mismatch is the failure that actually happens in the field: a Node upgrade
+  // leaves a working-looking install whose native binding no longer loads. The message
+  // has to name the fix, because the default reaction to "re2 unavailable" is to
+  // reinstall, which does not rebuild.
+  describe('describeLoadFailure', () => {
+    it('explains an ABI mismatch as a rebuild, naming the running Node version', () => {
+      const reason = describeLoadFailure(
+        Object.assign(
+          new Error(
+            "The module '/x/re2.node'\nwas compiled against a different Node.js version using\n" +
+              'NODE_MODULE_VERSION 127. This version of Node.js requires\nNODE_MODULE_VERSION 147.',
+          ),
+          { code: 'ERR_DLOPEN_FAILED' },
+        ),
+      );
+      expect(reason).toMatch(/rebuild it with "pnpm rebuild re2"/);
+      expect(reason).toContain(process.version);
+    });
+
+    it('explains a missing package as an install', () => {
+      const reason = describeLoadFailure(
+        Object.assign(new Error("Cannot find module 're2'"), { code: 'MODULE_NOT_FOUND' }),
+      );
+      expect(reason).toMatch(/pnpm install/);
+    });
+
+    it('falls back to the error text for anything unrecognized', () => {
+      expect(describeLoadFailure(new Error('something else entirely'))).toContain(
+        'something else entirely',
+      );
+    });
+  });
+
+  it('loadRe2 returns a usable constructor or a stated reason, never both empty', () => {
+    const { ctor, reason } = loadRe2();
+    expect(ctor === null ? reason : 'loaded').toBeTruthy();
   });
 });

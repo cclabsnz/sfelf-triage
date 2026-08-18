@@ -3,18 +3,51 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # engines allows >=20, so every supported major is built and tested. The native
+        # RE2 binding is ABI-bound to the Node major it was compiled against, and the
+        # engine gate below is what turns a silent fallback on a new major into a red build.
+        node-version: [20, 22, 24]
+    name: test (node ${{ matrix.node-version }})
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with: { version: 9 }
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: pnpm }
+        with: { node-version: "${{ matrix.node-version }}", cache: pnpm }
       - run: pnpm install --frozen-lockfile
         # Scope audit to production deps only — excludes vitest/vite (dev-only, never shipped).
-        # The re2>node-gyp>tar build-time chain appears under --prod because re2 is a runtime dep,
-        # but tar is only exercised during `re2` native-module compilation (build time, CI install).
-        # Those tar GHSAs are allowlisted in package.json pnpm.auditConfig.ignoreGhsas with
-        # individual notes. Any NEW high/critical in the true runtime path will still fail the gate.
+        # No advisories are allowlisted: any high/critical in the runtime graph fails the gate.
       - run: pnpm audit --prod --audit-level=high
       - run: pnpm build
       - run: pnpm test
+
+      # The tool advertises linear-time, ReDoS-immune matching via RE2, and degrades to
+      # a backtracking JS engine when the native binding cannot load. That fallback is
+      # deliberately non-fatal at runtime, which means CI is the only place it can be
+      # caught — without this step a Node upgrade would quietly ship a weaker guarantee
+      # while every other check stayed green.
+      - name: assert RE2 is the active engine
+        run: node dist/cli.js analyze src/core/__fixtures__/benign --require-re2 > /dev/null
+
+  lint-docs:
+    runs-on: ubuntu-latest
+    name: docs match the shipped surface
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      # SECURITY.md previously described an audit allowlist that had already been removed
+      # from package.json. Documentation drift on a security control is a security bug:
+      # it is what an auditor reads instead of the config.
+      - name: SECURITY.md does not claim an audit allowlist unless one exists
+        run: |
+          if grep -q 'ignoreGhsas' docs/SECURITY.md && ! grep -q 'ignoreGhsas' package.json; then
+            echo "SECURITY.md documents an audit allowlist that package.json does not define"
+            exit 1
+          fi

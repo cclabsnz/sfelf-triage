@@ -1,5 +1,14 @@
+/**
+ * Ordered ascending by severity — `--fail-on` derives its threshold ranking from this
+ * order, so reordering silently changes which runs fail a pipeline gate. A test pins it.
+ */
 export const VERDICTS = ['BENIGN_SCANNER', 'SUSPICIOUS', 'LIKELY_ABUSE'] as const;
 export type Verdict = (typeof VERDICTS)[number];
+
+/** Rank of a verdict within {@link VERDICTS}; higher is more severe. */
+export function severityOf(verdict: Verdict): number {
+  return VERDICTS.indexOf(verdict);
+}
 
 /** Unique brand marking a value as having passed Sanitizer.ingress. */
 export const brand: unique symbol = Symbol('SafeEvent');
@@ -57,6 +66,8 @@ export interface IpVerdict {
   readonly reasons: readonly string[];
   readonly totalReqs: number;
   readonly distinctUris: number;
+  /** True when `distinctUris` is a floor, not an exact count (per-IP ceiling reached). */
+  readonly distinctUrisTruncated: boolean;
   readonly families: Readonly<Record<string, number>>;
   readonly sfExploitableHits: number;
   readonly allResponsesErrorOrCanned: boolean;
