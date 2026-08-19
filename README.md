@@ -28,10 +28,15 @@ not supported: it reached end of life on 2026-04-30, and the `re2` versions that
 no open advisories do not run on it.
 
 ```bash
-# Install the CLI globally straight from the repo
-npm install -g github:cclabsnz/sfelf-triage
+npm install -g sfelf-triage
 
 sfelf-triage doctor          # confirm the install is healthy before trusting a run
+```
+
+Or straight from the repo, to run an unreleased revision:
+
+```bash
+npm install -g github:cclabsnz/sfelf-triage
 ```
 
 Or from a clone, for development:
@@ -41,9 +46,8 @@ pnpm install                 # builds dist/ via the prepare script
 sfelf-triage --help          # after `pnpm link --global`, or use `node dist/cli.js`
 ```
 
-Not yet published to the public npm registry; the GitHub install above is the supported
-path. Examples below use `sfelf-triage`; substitute `node dist/cli.js` in a clone you
-have not linked.
+Examples below use `sfelf-triage`; substitute `node dist/cli.js` in a clone you have not
+linked.
 
 ### Your logs must be named correctly
 

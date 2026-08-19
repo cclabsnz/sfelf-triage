@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project uses semantic versioning.
 
-## [Unreleased]
+## [0.2.0] — 2026-08-19
 
 ### Added
 - **`doctor`** — one command that answers "is this install healthy, and if not what do I
