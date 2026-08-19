@@ -114,7 +114,17 @@ catalog/     class1 + class2 + index   detection rules
 core/        discover · ingest · match · correlate · score · analyze
 limits.ts    resource ceilings + LimitReport
 gate.ts      --fail-on threshold evaluation + exit codes
-report/      render · catalogView · explain   (all via egress)
+orgDir.ts    --org / <dir> resolution (validated as a single path segment)
+report/      render · catalogView · explain · doctor   (all via egress)
 cli.ts       commander entrypoint
 types.ts     SafeEvent (branded), Rule, Match, IpVerdict, Verdict
 ```
+
+`report/` carries a human and a machine form of everything it renders — `--json` on
+`analyze`, `catalog`, `explain` and `doctor`. The machine forms are a published
+interface (see [AGENTS.md](../AGENTS.md)); CI asserts their shapes, because a consumer
+parsing them cannot notice a silent reshape until it is already wrong.
+
+`discover` returns rejected CSVs alongside accepted ones. A log directory whose files are
+one character off the expected naming is the most common first-run failure, and the
+information needed to say so precisely is only available where the rejection happens.

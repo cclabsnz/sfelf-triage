@@ -5,6 +5,57 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **`doctor`** — one command that answers "is this install healthy, and if not what do I
+  run": running Node against the supported range, whether the native RE2 binding loaded
+  (with the reason and the remedy when it did not), and the effective resource ceilings.
+  Exits `2` when degraded, the same code `--require-re2` uses. `--json` for pipelines.
+  The information existed before, spread across a stderr warning that only appears
+  mid-analysis, a README section, and the source of `limits.ts`.
+- **`--why`** — the per-IP `reasons` the scorer already computed reached `--json` only, so
+  the default table showed a verdict with no way to see the evidence behind it short of
+  re-running in another format. Now available in the table and markdown views.
+- **`-o, --out <file>`** — write the report to a file. An unwritable path is fatal rather
+  than a warning: a caller who asked for a file and got exit `0` will believe it is there.
+- **`--org <orgId>`** — read `~/.sf/event-baseline/<orgId>` instead of typing the path.
+  Validated as a single path segment, so a convenience flag cannot become a traversal.
+  Passing both a directory and `--org` is refused rather than resolved by precedence.
+- **`catalog --json` and `explain --json`** — the self-documenting commands emitted prose
+  only, which is the one format a script or an agent cannot consume. `explain --json`
+  carries each verdict's severity rank, so a consumer compares verdicts without
+  re-deriving the order `--fail-on` uses.
+- **Single-CSV input.** `analyze` accepts a path to one CSV, not only a directory.
+  Pointing at a file is the obvious first instinct and previously failed as "no CSVs found".
+- **`AGENTS.md`** — the terse machine-facing contract (invocation, exit codes, output
+  shapes) with none of the README's rationale.
+- **An end-to-end CLI suite** (`src/cli.test.ts`) over the built binary. The unit suites
+  covered each piece; the wiring — which flag reaches which renderer, what lands on stdout
+  versus stderr, the exit code — was only checked by a shell block in CI that never runs
+  on a developer's machine.
+
+### Changed
+- **A run that finds no logs now names the CSVs it rejected and what is wrong with each.**
+  The old message printed "no EventLogFile CSVs found" over a directory full of CSVs that
+  were one character away from matching, and left the analyst to guess which character.
+  It now distinguishes an underscore for a hyphen, a `" (1)"` duplicate-download suffix, a
+  name carrying no date, and a date-prefixed file whose parent directory is not an
+  EventType. The retained sample is bounded — rejected filenames are attacker-shaped input.
+- **`explain <unknown-verdict>` exits `1`.** It printed a non-answer and exited `0`, which
+  reads as success.
+- **`prepare` builds `dist/` on install**, so `npm install -g github:cclabsnz/sfelf-triage`
+  produces a working binary. `dist/` is gitignored, so the declared `bin` previously
+  pointed at a file a git install never created.
+- `package.json` declares `repository`, `homepage` and `bugs`.
+
+### Documentation
+- README: corrected the `--json` example, which omitted `reasons` and
+  `allResponsesErrorOrCanned` — a consumer coding against it built the wrong parser. Added
+  a full field reference for both, a sample of the default table output (only JSON was
+  shown), a troubleshooting table, a quick start, and the filename requirement next to
+  Install rather than buried below the examples. Settled on one invocation style
+  throughout; the old text switched between `node dist/cli.js` and `sfelf-triage`
+  mid-document.
+
 ### Security
 - **Upgraded `re2` 1.21.4 -> 1.26.1**, clearing four open advisories against the one
   dependency that runs against hostile input by design (GHSA-8hcv-x26h-mcgp,
