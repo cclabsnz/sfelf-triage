@@ -1,9 +1,17 @@
 {
   "name": "sfelf-triage",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Standalone forensic triage for Salesforce EventLogFile CSVs",
   "type": "module",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cclabsnz/sfelf-triage.git"
+  },
+  "homepage": "https://github.com/cclabsnz/sfelf-triage#readme",
+  "bugs": {
+    "url": "https://github.com/cclabsnz/sfelf-triage/issues"
+  },
   "author": "Gaurav Thakur",
   "keywords": [
     "salesforce",
@@ -23,11 +31,13 @@
   "files": [
     "dist",
     "README.md",
+    "AGENTS.md",
     "LICENSE",
     "CHANGELOG.md",
     "docs"
   ],
   "scripts": {
+    "prepare": "tsc -p tsconfig.json",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest"
