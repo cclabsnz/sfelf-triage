@@ -92,6 +92,48 @@ jobs:
           check src/core/__fixtures__/benign 3 --fail-on BENIGN_SCANNER
           check src/core/__fixtures__/benign 4 --fail-on LIKELY_ABUSE --max-rows 2
           check src/core/__fixtures__/benign 1 --fail-on NOPE
+          # Input forms: one CSV is a valid target; the two ways to name logs are exclusive.
+          check src/core/__fixtures__/benign/Sites-2024-01-15.csv 0
+          check src/core/__fixtures__/benign 1 --org 00D000000000001EAA
+
+      # `doctor` is the pre-flight an operator is told to trust, so a green build must
+      # mean it actually reports this installation as healthy. It shares exit code 2 with
+      # --require-re2: one number for "cannot stand behind its own guarantees".
+      - name: assert doctor reports a healthy install
+        run: |
+          node dist/cli.js doctor
+          node -e "
+            const { execFileSync } = require('node:child_process');
+            const d = JSON.parse(execFileSync('node', ['dist/cli.js', 'doctor', '--json'], { encoding: 'utf8' }));
+            if (d.status !== 'ok') { console.error('doctor: ' + JSON.stringify(d)); process.exit(1); }
+            if (d.engine.name !== 're2') { console.error('doctor: engine is ' + d.engine.name); process.exit(1); }
+            console.log('  ok: doctor -> ok on ' + d.node.version);
+          "
+
+      # The machine-readable modes are a published interface: agents and scripts parse
+      # them, so malformed or reshaped output is a breaking change, not a cosmetic one.
+      - name: assert the machine-readable modes emit valid JSON
+        run: |
+          node -e "
+            const { execFileSync } = require('node:child_process');
+            const run = (...a) => JSON.parse(execFileSync('node', ['dist/cli.js', ...a], { encoding: 'utf8' }));
+            const cat = run('catalog', '--json');
+            if (!cat.count || cat.count !== cat.rules.length) throw new Error('catalog --json: count/rules mismatch');
+            if (!cat.rules.every(r => typeof r.sfExploitable === 'boolean')) throw new Error('catalog --json: rule shape');
+            const ex = run('explain', '--json');
+            if (ex.verdicts.length !== 3) throw new Error('explain --json: expected 3 verdicts');
+            if (ex.verdicts.map(v => v.severity).join() !== '0,1,2') throw new Error('explain --json: severity order');
+            const an = run('analyze', 'src/core/__fixtures__/abuse', '--json');
+            for (const k of ['engine', 'truncated', 'limitsReached', 'stats', 'verdicts'])
+              if (!(k in an)) throw new Error('analyze --json: missing ' + k);
+            for (const k of ['reasons', 'allResponsesErrorOrCanned', 'distinctUrisTruncated'])
+              if (!(k in an.verdicts[0])) throw new Error('analyze --json: verdict missing ' + k);
+            console.log('  ok: catalog/explain/analyze --json shapes hold');
+          "
+          set +e
+          node dist/cli.js explain NOPE > /dev/null 2>&1
+          [ $? = 1 ] || { echo 'FAIL: explain NOPE should exit 1'; exit 1; }
+          echo '  ok: explain NOPE -> 1'
 
   lint-docs:
     runs-on: ubuntu-latest
