@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_LIMITS, LimitReport } from '../limits.js';
-import { discover } from './discover.js';
+import { discover, discoverDetailed } from './discover.js';
 
 describe('discover', () => {
   let dir: string;
@@ -116,5 +116,81 @@ describe('discover: traversal confinement', () => {
     } finally {
       await rm(many, { recursive: true, force: true });
     }
+  });
+});
+
+// A failed first run is almost always a naming mismatch. The tool sees the rejected
+// files; telling the analyst what it saw and why it skipped each one is the difference
+// between a two-second fix and a guess.
+describe('discoverDetailed: rejection diagnostics', () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'sfelf-reject-'));
+    await writeFile(join(dir, 'Sites-2024-01-15.csv'), 'a\n');
+    await writeFile(join(dir, 'Sites_2024-01-15.csv'), 'a\n');
+    await writeFile(join(dir, 'Sites-2024-01-15 (1).csv'), 'a\n');
+    await writeFile(join(dir, 'EventLogFile.csv'), 'a\n');
+    await writeFile(join(dir, 'notes.txt'), 'x');
+  });
+  afterAll(async () => rm(dir, { recursive: true, force: true }));
+
+  it('reports every rejected CSV with a reason, and ignores non-CSVs', async () => {
+    const { files, rejected } = await discoverDetailed(dir);
+    expect(files).toHaveLength(1);
+    expect(rejected.map(r => r.name).sort()).toEqual(
+      ['EventLogFile.csv', 'Sites-2024-01-15 (1).csv', 'Sites_2024-01-15.csv'],
+    );
+  });
+
+  it('names the underscore as the specific problem', async () => {
+    const { rejected } = await discoverDetailed(dir);
+    const r = rejected.find(x => x.name === 'Sites_2024-01-15.csv')!;
+    expect(r.reason).toMatch(/underscore/i);
+  });
+
+  it('names a duplicate-download suffix as the specific problem', async () => {
+    const { rejected } = await discoverDetailed(dir);
+    const r = rejected.find(x => x.name === 'Sites-2024-01-15 (1).csv')!;
+    expect(r.reason).toMatch(/\(1\)|duplicate/i);
+  });
+
+  it('says a name carrying no date carries no date', async () => {
+    const { rejected } = await discoverDetailed(dir);
+    const r = rejected.find(x => x.name === 'EventLogFile.csv')!;
+    expect(r.reason).toMatch(/date/i);
+  });
+});
+
+// Pointing at one CSV is the obvious first instinct; failing it as "no CSVs found" is
+// a dead end the tool has no reason to create.
+describe('discover: single file input', () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'sfelf-single-'));
+    await mkdir(join(dir, 'Sites'), { recursive: true });
+    await writeFile(join(dir, 'Sites-2024-01-15.csv'), 'a\n');
+    await writeFile(join(dir, 'Sites', '2024-01-15-0AT000000000001.csv'), 'a\n');
+    await writeFile(join(dir, 'wrong.csv'), 'a\n');
+  });
+  afterAll(async () => rm(dir, { recursive: true, force: true }));
+
+  it('accepts a path to a single flat-named CSV', async () => {
+    const files = await discover(join(dir, 'Sites-2024-01-15.csv'));
+    expect(files).toHaveLength(1);
+    expect(files[0].eventType).toBe('Sites');
+    expect(files[0].date).toBe('2024-01-15');
+  });
+
+  it('accepts a single CSV in the nested plugin layout, typed from its parent dir', async () => {
+    const files = await discover(join(dir, 'Sites', '2024-01-15-0AT000000000001.csv'));
+    expect(files).toHaveLength(1);
+    expect(files[0].eventType).toBe('Sites');
+  });
+
+  it('rejects a badly named single file with a reason rather than silence', async () => {
+    const { files, rejected } = await discoverDetailed(join(dir, 'wrong.csv'));
+    expect(files).toHaveLength(0);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toMatch(/date/i);
   });
 });
