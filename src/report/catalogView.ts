@@ -42,3 +42,28 @@ export function renderCatalog(rules: readonly Rule[], family?: string): string {
   );
   return lines.join('\n');
 }
+
+/**
+ * The catalog as data.
+ *
+ * `catalog` exists so the tool can explain its own coverage; the prose form serves an
+ * analyst and defeats anything that needs to reason over the rule set — a coverage
+ * check, a diff between versions, an agent deciding whether a family is handled here
+ * or belongs in forensics-db. The rules are our own constants, not untrusted input, and
+ * JSON.stringify escapes control characters itself, so no egress pass is needed.
+ */
+export function renderCatalogJson(rules: readonly Rule[], family?: string): string {
+  const filtered = family
+    ? rules.filter((r) => r.family.toLowerCase() === family.toLowerCase())
+    : rules;
+
+  return JSON.stringify(
+    {
+      family: family ?? null,
+      count: filtered.length,
+      rules: filtered,
+    },
+    null,
+    2,
+  );
+}

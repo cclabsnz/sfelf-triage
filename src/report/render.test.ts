@@ -93,3 +93,46 @@ describe('report', () => {
     expect(t).toContain('>=50');
   });
 });
+
+// The scorer computes a per-IP explanation and, until --why existed, only --json ever
+// showed it. A human reading the default output could see the verdict but not the
+// evidence behind it.
+describe('report: --why', () => {
+  it('renderTable omits the reason column by default', () => {
+    expect(renderTable(reportOf())).not.toContain('Class-1 probes only');
+  });
+
+  it('renderTable shows the scorer reasons when asked', () => {
+    const t = renderTable(reportOf(), { why: true });
+    expect(t).toContain('Why');
+    expect(t).toContain('Class-1 probes only');
+  });
+
+  it('renderMarkdown shows the scorer reasons when asked', () => {
+    const md = renderMarkdown(reportOf(), { why: true });
+    expect(md).toContain('Class-1 probes only');
+  });
+
+  it('joins multiple reasons into one cell', () => {
+    const two = { ...verdict, reasons: ['first reason', 'second reason'] };
+    const t = renderTable(reportOf({ verdicts: [two] }), { why: true });
+    expect(t).toContain('first reason');
+    expect(t).toContain('second reason');
+  });
+
+  // cli-table3 colours its own borders with ANSI, so "output contains no ESC" would be
+  // false for reasons that have nothing to do with the untrusted value. The assertion
+  // is on the injected payload itself: it must arrive stripped.
+  it('routes reasons through egress like every other cell', () => {
+    const esc = String.fromCharCode(27);
+    const nasty = { ...verdict, reasons: [`bad${esc}[31mred`] };
+    const out = renderTable(reportOf({ verdicts: [nasty] }), { why: true });
+    expect(out).toContain('badred');
+    expect(out).not.toContain(`bad${esc}`);
+  });
+
+  it('escapes a pipe in a reason so it cannot forge a markdown column', () => {
+    const nasty = { ...verdict, reasons: ['a | b'] };
+    expect(renderMarkdown(reportOf({ verdicts: [nasty] }), { why: true })).toContain('a \\| b');
+  });
+});

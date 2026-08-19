@@ -15,6 +15,19 @@ function uris(v: IpVerdict): string {
   return v.distinctUrisTruncated ? `>=${v.distinctUris}` : String(v.distinctUris);
 }
 
+export interface RenderOptions {
+  /**
+   * Include the scorer's per-IP reasons. Off by default: the verdict is the answer and
+   * the table stays scannable, but "why did it say that" is the immediate next question
+   * and the answer should not be reachable only by re-running with --json.
+   */
+  readonly why?: boolean;
+}
+
+function why(v: IpVerdict, cell: (s: string) => string): string {
+  return v.reasons.map(cell).join('; ');
+}
+
 /**
  * The banner shown whenever a run cannot stand behind its own guarantees — either the
  * ReDoS-immune engine was not in use, or a ceiling truncated the input. Rendered into
@@ -53,33 +66,38 @@ export function renderJson(report: AnalysisReport): string {
   );
 }
 
-export function renderTable(report: AnalysisReport): string {
-  const t = new Table({ head: ['IP', 'Verdict', 'Reqs', 'Distinct URIs', 'sfHits', 'Families'] });
+export function renderTable(report: AnalysisReport, opts: RenderOptions = {}): string {
+  const head = ['IP', 'Verdict', 'Reqs', 'Distinct URIs', 'sfHits', 'Families'];
+  if (opts.why) head.push('Why');
+  const t = new Table({ head, wordWrap: true });
   for (const v of report.verdicts) {
-    t.push([
+    const row = [
       egress(v.ip),
       egress(v.verdict),
       String(v.totalReqs),
       uris(v),
       String(v.sfExploitableHits),
       fams(v, egress),
-    ]);
+    ];
+    if (opts.why) row.push(why(v, egress));
+    t.push(row);
   }
   const notes = caveats(report);
   return notes.length > 0 ? `${notes.join('\n')}\n\n${t.toString()}` : t.toString();
 }
 
-export function renderMarkdown(report: AnalysisReport): string {
+export function renderMarkdown(report: AnalysisReport, opts: RenderOptions = {}): string {
   const lines: string[] = [];
   for (const note of caveats(report)) lines.push(`> **${mdCell(note)}**`, '');
   lines.push(
-    '| IP | Verdict | Reqs | Distinct URIs | sfHits | Confidence |',
-    '|---|---|---|---|---|---|',
+    `| IP | Verdict | Reqs | Distinct URIs | sfHits | Confidence |${opts.why ? ' Why |' : ''}`,
+    `|---|---|---|---|---|---|${opts.why ? '---|' : ''}`,
   );
   for (const v of report.verdicts) {
     lines.push(
       `| ${mdCell(v.ip)} | ${mdCell(v.verdict)} | ${v.totalReqs} | ${uris(v)} | ` +
-        `${v.sfExploitableHits} | ${mdCell(v.confidence)} |`,
+        `${v.sfExploitableHits} | ${mdCell(v.confidence)} |` +
+        (opts.why ? ` ${why(v, mdCell)} |` : ''),
     );
   }
   return lines.join('\n');
